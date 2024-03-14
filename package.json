@@ -1,7 +1,7 @@
 {
-  "name": "hello-world-react-vite",
-  "displayName": "hello-world-react-vite",
-  "description": "A hello world sample extension to demonstrate using React + Vite with the Webview UI Toolkit for VS Code.",
+  "name": "vscode-sql-dag-viewer",
+  "displayName": "SQL DAG Viewer",
+  "description": "Preview SQL DAGs in VS Code",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.75.0"
@@ -10,8 +10,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "hello-world.showHelloWorld",
-        "title": "Hello World (React + Vite): Show"
+        "command": "sql-dag-viewer.previewDAG",
+        "title": "SQL DAG Viewer: Preview DAG"
       }
     ]
   },

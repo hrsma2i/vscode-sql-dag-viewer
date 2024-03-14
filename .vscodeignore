@@ -2,7 +2,7 @@
 # be ignored (i.e. not included) in the final packaged extension.
 
 # Ignore extension configs
-.vscode/**
+# .vscode/**
 
 # Ignore test files
 .vscode-test/**
