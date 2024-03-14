@@ -48,7 +48,7 @@ export class HelloWorldPanel {
   public static render(extensionUri: Uri, sql: string) {
     if (HelloWorldPanel.currentPanel) {
       // If the webview panel already exists reveal it
-      HelloWorldPanel.currentPanel._panel.reveal(ViewColumn.One);
+      HelloWorldPanel.currentPanel._panel.reveal(ViewColumn.Two);
     } else {
       // If a webview panel does not already exist create and show a new one
       const panel = window.createWebviewPanel(
@@ -57,7 +57,7 @@ export class HelloWorldPanel {
         // Panel title
         "Hello World",
         // The editor column the panel should be displayed in
-        ViewColumn.One,
+        ViewColumn.Two,
         // Extra panel configurations
         {
           // Enable JavaScript in the webview
