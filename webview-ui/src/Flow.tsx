@@ -29,7 +29,7 @@ type Select = {
 
 const getNodesAndEdges = (sql: string): [Node[], Edge[]] => {
   const parser = new Parser()
-  const ast = parser.astify(sql) as Select
+  const ast = parser.astify(sql, {database: 'BigQuery'}) as Select
 
   const nodes: Node[] = []
   const edges: Edge[] = []
