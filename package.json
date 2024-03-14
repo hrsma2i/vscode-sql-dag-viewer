@@ -8,6 +8,10 @@
   },
   "main": "./out/extension.js",
   "publisher": "hrsma2i",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hrsma2i/vscode-sql-dag-viewer"
+  },
   "contributes": {
     "commands": [
       {
@@ -21,7 +25,7 @@
     "start:webview": "cd webview-ui && npm run start",
     "build:webview": "cd webview-ui && npm run build",
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "./node_modules/typescript/bin/tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts"
