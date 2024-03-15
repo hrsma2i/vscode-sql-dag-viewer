@@ -2,7 +2,7 @@
   "name": "vscode-sql-dag-viewer",
   "displayName": "SQL DAG Viewer",
   "description": "Preview SQL DAGs in VS Code",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "engines": {
     "vscode": "^1.75.0"
   },

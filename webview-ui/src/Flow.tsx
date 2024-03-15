@@ -1,5 +1,5 @@
 import React from 'react';
-import { Parser, From } from "node-sql-parser";
+import { FromClause, JoinExpr, parse, SelectStmt, WithClause, Alias, BigQueryQuotedMemberExpr, Identifier} from 'sql-parser-cst'
 import ReactFlow, {
   ReactFlowProvider,
   useNodesState,
@@ -13,36 +13,73 @@ import ELK from 'elkjs/lib/elk.bundled.js';
 
 const elk = new ELK();
 
-type With = {
-  name: {
-    value: string
-  };
-  stmt: {
-    ast: Select
-  };
+const getNamesFromTableExpr = (table_expr: Identifier | Alias | JoinExpr): string[] => {
+  if (table_expr.type === "identifier") {
+      const identifier = table_expr as Identifier
+      return [identifier.name]
+  } else if (table_expr.type === "alias") {
+      const alias = table_expr as Alias
+
+      let identifier: Identifier | null = null
+      if (alias.expr.type === "bigquery_quoted_member_expr") {
+          const bq_quated_member_expr = alias.expr as BigQueryQuotedMemberExpr
+          identifier = bq_quated_member_expr.expr.property as Identifier
+      } else if (alias.expr.type === "identifier") {
+          identifier = alias.expr as Identifier
+      } else {
+          throw new Error(`Unexpected expr type: ${alias.expr.type}`)
+      }
+
+      return [identifier.name]
+  } else if (table_expr.type === "join_expr") {
+      const join_expr = table_expr as JoinExpr
+      const left = join_expr.left as Alias | JoinExpr
+      const right = join_expr.right as Alias | JoinExpr
+      const left_nodes = getNamesFromTableExpr(left)
+      const right_nodes = getNamesFromTableExpr(right)
+      const nodes = left_nodes.concat(right_nodes)
+      return nodes
+  } else {
+      return []
+  }
 }
 
-type Select = {
-  with: Array<With> | null;
-  from: Array<From> | null;
+const getParentsFromSelectStmt = (select_stmt: SelectStmt): string[] => {
+  const from_clause = select_stmt.clauses.filter(c => c.type === 'from_clause')[0] as FromClause
+  const table_expr = from_clause.expr as unknown as Identifier | Alias | JoinExpr
+  return getNamesFromTableExpr(table_expr)
 }
+
 
 const getNodesAndEdges = (sql: string): [Node[], Edge[]] => {
-  const parser = new Parser()
-  const ast = parser.astify(sql, {database: 'BigQuery'}) as Select
+  console.log("parse SQL")
+  const cst = parse(sql, {
+    dialect: "bigquery",
+    // These are optional:
+    includeSpaces: true, // Adds spaces/tabs
+    includeNewlines: true, // Adds newlines
+    includeComments: true, // Adds comments
+    includeRange: true, // Adds source code location data
+  })
+  console.log(`finished to parse SQL: ${cst}`)
+
+  const select_stmt = cst.statements.filter(s => s.type === 'select_stmt')[0] as SelectStmt
+  const with_clause = select_stmt.clauses.filter(c => c.type === 'with_clause')[0] as WithClause
 
   const nodes: Node[] = []
   const edges: Edge[] = []
 
-  ast.with?.forEach((cte) => {
-    const child = cte.name.value
+  with_clause.tables.items.forEach(cte => {
+    const inner_select_stmt = cte.expr.expr as SelectStmt
+    const parents = getParentsFromSelectStmt(inner_select_stmt)
+
+    const child = cte.table.name
     const childNode = { id: child, data: { label: child }, position: { x: 0, y: 0 } }
     if (!nodes.includes(childNode)) {
       nodes.push(childNode)
     }
 
-    cte.stmt.ast.from?.forEach((f) => {
-      const parent = f.table!
+    parents.forEach((parent) => {
       const parentNode = { id: parent, data: { label: parent }, position: { x: 0, y: 0 } }
       if (!nodes.includes(parentNode)) {
         nodes.push(parentNode)
@@ -54,14 +91,16 @@ const getNodesAndEdges = (sql: string): [Node[], Edge[]] => {
   const mainName = '(main)'
   nodes.push({ id: mainName, data: { label: mainName }, position: { x: 0, y: 0 } })
 
-  ast.from?.forEach((f) => {
-      const parent = f.table!
+  const parents = getParentsFromSelectStmt(select_stmt)
+  parents.forEach((parent) => {
       const parentNode = { id: parent, data: { label: parent }, position: { x: 0, y: 0 } }
       if (!nodes.includes(parentNode)) {
         nodes.push(parentNode)
       }
       edges.push({ id: `${parent}->${mainName}`, source: parent, target: mainName, animated: true })
   })
+
+  console.log("finished to parse SQL")
 
   return [ nodes, edges ]
 }
@@ -77,7 +116,7 @@ const updateNodePosition = async (nodes: Node[], edges: Edge[]): Promise<Node[]>
   const graph = {
     id: 'root',
     layoutOptions: defaultOptions,
-    children: nodes.map((n) => ({id: n.id, width: 100, height: 30})),
+    children: nodes.map((n) => ({id: n.id, width: 10 * n.id.length, height: 30})),
     edges: edges.map((e) => ({id: e.id, sources: [e.source], targets: [e.target]})),
   };
 
@@ -94,7 +133,7 @@ const updateNodePosition = async (nodes: Node[], edges: Edge[]): Promise<Node[]>
       return oldNode
     }
 
-    return { id: child.id, data: {label: oldNode.data.label }, position: {x: child.x, y: child.y} }
+    return { id: child.id, data: {label: oldNode.data.label }, position: {x: child.x, y: child.y}, style: {width: child.width} }
   }).filter((x) => x !== null) as Node[]
 
   return newNodes
@@ -110,7 +149,6 @@ const LayoutFlow = () => {
     console.log("useEffect called")
     const messageHandler = (event: any) => {
       const sql = event.data?.sql;
-      console.log(`sql: ${sql}`)
 
       if (sql) {
         const [parsedNodes, parsedEdges] = getNodesAndEdges(sql)
