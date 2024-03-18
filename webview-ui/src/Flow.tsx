@@ -1,5 +1,5 @@
 import React from 'react';
-import { FromClause, JoinExpr, parse, SelectStmt, WithClause, Alias, BigQueryQuotedMemberExpr, Identifier} from 'sql-parser-cst'
+import { FromClause, JoinExpr, parse, SelectStmt, WithClause, Alias, BigQueryQuotedMemberExpr, Identifier, SubSelect, CompoundSelectStmt} from 'sql-parser-cst'
 import ReactFlow, {
   ReactFlowProvider,
   useNodesState,
@@ -44,10 +44,22 @@ const getNamesFromTableExpr = (table_expr: Identifier | Alias | JoinExpr): strin
   }
 }
 
-const getParentsFromSelectStmt = (select_stmt: SelectStmt): string[] => {
-  const from_clause = select_stmt.clauses.filter(c => c.type === 'from_clause')[0] as FromClause
-  const table_expr = from_clause.expr as unknown as Identifier | Alias | JoinExpr
-  return getNamesFromTableExpr(table_expr)
+const getParentsFromSubSelectStmt = (sub_select: SubSelect): string[] => {
+  if (sub_select.type === "select_stmt") {
+    const select_stmt = sub_select as SelectStmt
+    const from_clause = select_stmt.clauses.filter(c => c.type === 'from_clause')[0] as FromClause
+    const table_expr = from_clause.expr as unknown as Identifier | Alias | JoinExpr
+    return getNamesFromTableExpr(table_expr)
+  } else if (sub_select.type === "compound_select_stmt") {
+    const compound_select_stmt = sub_select as CompoundSelectStmt
+    const left = compound_select_stmt.left as SubSelect
+    const right = compound_select_stmt.right as SubSelect
+    const left_parents = getParentsFromSubSelectStmt(left)
+    const right_parents = getParentsFromSubSelectStmt(right)
+    return left_parents.concat(right_parents)
+  } else {
+    throw new Error(`Unexpected sub_select type: ${sub_select.type}`)
+  }
 }
 
 
@@ -71,8 +83,8 @@ const getNodesAndEdges = (sql: string): [Node[], Edge[]] => {
   const edges: Edge[] = []
 
   with_clause.tables.items.forEach(cte => {
-    const inner_select_stmt = cte.expr.expr as SelectStmt
-    const parents = getParentsFromSelectStmt(inner_select_stmt)
+    const inner_sub_select = cte.expr.expr as SubSelect
+    const parents = getParentsFromSubSelectStmt(inner_sub_select)
 
     const child = cte.table.name
     const childNode = { id: child, data: { label: child }, position: { x: 0, y: 0 } }
@@ -92,7 +104,7 @@ const getNodesAndEdges = (sql: string): [Node[], Edge[]] => {
   const mainName = '(main)'
   nodes.push({ id: mainName, data: { label: mainName }, position: { x: 0, y: 0 } })
 
-  const parents = getParentsFromSelectStmt(select_stmt)
+  const parents = getParentsFromSubSelectStmt(select_stmt)
   parents.forEach((parent) => {
       const parentNode = { id: parent, data: { label: parent }, position: { x: 0, y: 0 } }
       if (!nodes.includes(parentNode)) {
@@ -153,6 +165,7 @@ const LayoutFlow = () => {
 
       if (sql) {
         const [parsedNodes, parsedEdges] = getNodesAndEdges(sql)
+        console.log("Update node positions")
         updateNodePosition(parsedNodes, parsedEdges).then((layoutedNodes) => {
           setNodes(layoutedNodes)
           setEdges(parsedEdges)
@@ -161,6 +174,7 @@ const LayoutFlow = () => {
             fitView()
           })
         })
+        console.log("finished to update node positions")
       }
     };
 
