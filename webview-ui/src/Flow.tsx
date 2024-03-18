@@ -61,7 +61,8 @@ const getNodesAndEdges = (sql: string): [Node[], Edge[]] => {
     includeComments: true, // Adds comments
     includeRange: true, // Adds source code location data
   })
-  console.log(`finished to parse SQL: ${cst}`)
+  console.log(`finished to parse SQL`)
+  console.log(cst)
 
   const select_stmt = cst.statements.filter(s => s.type === 'select_stmt')[0] as SelectStmt
   const with_clause = select_stmt.clauses.filter(c => c.type === 'with_clause')[0] as WithClause
@@ -100,7 +101,7 @@ const getNodesAndEdges = (sql: string): [Node[], Edge[]] => {
       edges.push({ id: `${parent}->${mainName}`, source: parent, target: mainName, animated: true })
   })
 
-  console.log("finished to parse SQL")
+  console.log("finished to convert CST to DAG nodes and edges")
 
   return [ nodes, edges ]
 }
